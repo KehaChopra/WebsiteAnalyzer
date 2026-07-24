@@ -25,7 +25,7 @@ const FETCH_TIMEOUT_MS = 8000;
  * new categories (e.g. 'parse_failed') can be added without touching a shared
  * constants file.
  *
- * @property {'invalid_url'|'timeout'|'fetch_failed'|'parse_failed'} type
+ * @property {'invalid_url'|'timeout'|'unreachable'|'fetch_failed'|'parse_failed'} type
  * @property {string} message
  */
 class AnalyzeError extends Error {
@@ -82,7 +82,7 @@ function analyzeHtml(html) {
  * @param {string} url
  * @returns {Promise<object>} Audit result, or a "non-HTML content" result
  *   (never both a throw and a resolved value for the same failure mode).
- * @throws {AnalyzeError} typed failure — invalid_url | timeout | fetch_failed | parse_failed
+ * @throws {AnalyzeError} typed failure — invalid_url | timeout | unreachable | fetch_failed | parse_failed
  */
 async function analyzeUrl(url) {
   // --- 1. Validate the URL up front -----------------------------------------
@@ -118,12 +118,28 @@ async function analyzeUrl(url) {
   } catch (err) {
     // node-fetch rejects with an AbortError (name check, not instanceof —
     // works across the DOMException/Error implementations different Node
-    // versions use) when the controller fires; anything else is a genuine
-    // network failure (DNS, connection refused, TLS error, etc.).
+    // versions use) when the controller fires.
     if (err.name === 'AbortError') {
       throw new AnalyzeError('timeout', `Request to ${parsedUrl.href} timed out after ${FETCH_TIMEOUT_MS}ms.`);
     }
-    throw new AnalyzeError('fetch_failed', `Failed to fetch ${parsedUrl.href}: ${err.message}`);
+
+    // Anything else thrown by fetch() itself (as opposed to a resolved
+    // response with a bad status) means the request never made it to a
+    // server at all — DNS lookup failure, connection refused/reset, TLS
+    // handshake failure, etc. node-fetch (and native fetch) often nest the
+    // real system error under `.cause` rather than putting it directly on
+    // the caught error, so we check both when looking for a code — relying
+    // on `err.message` alone would miss cases where the useful part (e.g.
+    // `ENOTFOUND`) only shows up on `err.cause.code`.
+    const errorCode = err.code || (err.cause && err.cause.code);
+    console.error(
+      `analyzeUrl: network failure reaching ${parsedUrl.href}${errorCode ? ` (${errorCode})` : ''}:`,
+      err
+    );
+
+    // Deliberately a fixed, friendly message — never err.message or the
+    // error code — so internal Node/DNS error text never reaches the client.
+    throw new AnalyzeError('unreachable', 'Could not reach that URL. Please check the domain and try again.');
   } finally {
     // Always clear the timer, on both success and failure paths, so it can't
     // fire after the fact and so the event loop isn't held open needlessly.

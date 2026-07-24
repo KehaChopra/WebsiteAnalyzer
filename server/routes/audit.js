@@ -14,6 +14,7 @@ const router = express.Router();
 const ERROR_STATUS_BY_TYPE = {
   invalid_url: 400,
   timeout: 504,
+  unreachable: 502,
   fetch_failed: 502,
   parse_failed: 502,
 };
