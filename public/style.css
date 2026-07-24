@@ -1,0 +1,16 @@
+/* Page Pulse — plain CSS, no framework/build step. */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  max-width: 720px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+/* TODO: styles for the audit form (input + button layout) */
+
+/* TODO: styles for the #results section (score cards, pass/fail lists, etc.) */
