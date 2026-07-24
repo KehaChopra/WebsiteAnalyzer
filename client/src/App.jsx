@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import AuditForm from './AuditForm.jsx';
 import ReportCard from './ReportCard.jsx';
+import { validateUrl } from './validateUrl.js';
 import './App.css';
 
 function App() {
@@ -11,9 +12,19 @@ function App() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    setResult(null);
+
+    // Catch empty/malformed/non-http(s) input ourselves before it ever hits
+    // the network — this goes through the same error-message UI as a
+    // server-side failure, so every validation problem reads the same way.
+    const validationError = validateUrl(url);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setLoading(true);
     setError('');
-    setResult(null);
 
     try {
       const response = await fetch('/api/audit', {
